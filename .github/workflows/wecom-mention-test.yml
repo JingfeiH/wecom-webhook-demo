@@ -45,22 +45,14 @@ jobs:
 时间：${sent_at}
 说明：本条测试普通文本 @姓名 是否会形成强提醒；如未强提醒，需要企业微信 userid 或手机号。"
 
-          jq_filter='{msgtype:"text", text:{content:$content}}'
-          if [ -n "${MENTIONED_USERID}" ]; then
-            jq_filter="${jq_filter} | .text.mentioned_list=[\$userid]"
-          else
-            jq_filter="${jq_filter} | .text.mentioned_list=[\$display_name]"
-          fi
-          if [ -n "${MENTIONED_MOBILE}" ]; then
-            jq_filter="${jq_filter} | .text.mentioned_mobile_list=[\$mobile]"
-          fi
-
           payload="$(jq -n \
             --arg content "$content" \
             --arg display_name "$DISPLAY_NAME" \
             --arg userid "$MENTIONED_USERID" \
             --arg mobile "$MENTIONED_MOBILE" \
-            "$jq_filter")"
+            '{msgtype:"text", text:{content:$content}}
+             | if $userid != "" then .text.mentioned_list=[$userid] else .text.mentioned_list=[$display_name] end
+             | if $mobile != "" then .text.mentioned_mobile_list=[$mobile] else . end')"
 
           curl --fail --silent --show-error \
             --request POST \
