@@ -1,0 +1,43 @@
+name: WeCom Reminder Demo
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
+      TZ: Asia/Shanghai
+    steps:
+      - name: Send 10 test reminders
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${WECOM_WEBHOOK}" ]; then
+            echo "GitHub Actions secret WECOM_WEBHOOK is not set."
+            exit 1
+          fi
+
+          for i in $(seq 1 10); do
+            sent_at="$(date '+%Y-%m-%d %H:%M:%S %Z')"
+            content="企业微信机器人推送测试 ${i}/10 - ${sent_at}"
+            payload="$(jq -n --arg content "$content" '{msgtype:"text", text:{content:$content}}')"
+
+            curl --fail --silent --show-error \
+              --request POST \
+              --header 'Content-Type: application/json' \
+              --data "$payload" \
+              "$WECOM_WEBHOOK"
+
+            echo "Sent reminder ${i}/10 at ${sent_at}"
+
+            if [ "$i" -lt 10 ]; then
+              sleep 60
+            fi
+          done
