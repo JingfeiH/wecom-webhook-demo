@@ -1,0 +1,71 @@
+name: WeCom Mention Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      display_name:
+        description: Name to show after @ in the message body
+        required: true
+        default: 黄婧菲
+      mentioned_userid:
+        description: Optional WeCom userid for a real mention
+        required: false
+        default: ''
+      mentioned_mobile:
+        description: Optional mobile number for a real mention
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  send-mention-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
+      TZ: Asia/Shanghai
+      DISPLAY_NAME: ${{ inputs.display_name }}
+      MENTIONED_USERID: ${{ inputs.mentioned_userid }}
+      MENTIONED_MOBILE: ${{ inputs.mentioned_mobile }}
+    steps:
+      - name: Send mention test
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${WECOM_WEBHOOK}" ]; then
+            echo "GitHub Actions secret WECOM_WEBHOOK is not set."
+            exit 1
+          fi
+
+          sent_at="$(date '+%Y-%m-%d %H:%M:%S %Z')"
+          content="企业微信@测试：@${DISPLAY_NAME}
+时间：${sent_at}
+说明：本条测试普通文本 @姓名 是否会形成强提醒；如未强提醒，需要企业微信 userid 或手机号。"
+
+          jq_filter='{msgtype:"text", text:{content:$content}}'
+          if [ -n "${MENTIONED_USERID}" ]; then
+            jq_filter="${jq_filter} | .text.mentioned_list=[\$userid]"
+          else
+            jq_filter="${jq_filter} | .text.mentioned_list=[\$display_name]"
+          fi
+          if [ -n "${MENTIONED_MOBILE}" ]; then
+            jq_filter="${jq_filter} | .text.mentioned_mobile_list=[\$mobile]"
+          fi
+
+          payload="$(jq -n \
+            --arg content "$content" \
+            --arg display_name "$DISPLAY_NAME" \
+            --arg userid "$MENTIONED_USERID" \
+            --arg mobile "$MENTIONED_MOBILE" \
+            "$jq_filter")"
+
+          curl --fail --silent --show-error \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "$WECOM_WEBHOOK"
+
+          echo "Sent mention test for ${DISPLAY_NAME} at ${sent_at}"
