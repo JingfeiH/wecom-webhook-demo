@@ -41,18 +41,14 @@ jobs:
           fi
 
           sent_at="$(date '+%Y-%m-%d %H:%M:%S %Z')"
-          content="企业微信@测试：@${DISPLAY_NAME}
-时间：${sent_at}
-说明：本条测试普通文本 @姓名 是否会形成强提醒；如未强提醒，需要企业微信 userid 或手机号。"
+          content="企业微信@测试：@${DISPLAY_NAME}\\n时间：${sent_at}\\n说明：本条测试普通文本 @姓名 是否会形成强提醒；如未强提醒，需要企业微信 userid 或手机号。"
+          mention_target="${MENTIONED_USERID:-$DISPLAY_NAME}"
 
-          payload="$(jq -n \
-            --arg content "$content" \
-            --arg display_name "$DISPLAY_NAME" \
-            --arg userid "$MENTIONED_USERID" \
-            --arg mobile "$MENTIONED_MOBILE" \
-            '{msgtype:"text", text:{content:$content}}
-             | if $userid != "" then .text.mentioned_list=[$userid] else .text.mentioned_list=[$display_name] end
-             | if $mobile != "" then .text.mentioned_mobile_list=[$mobile] else . end')"
+          if [ -n "${MENTIONED_MOBILE}" ]; then
+            payload="$(jq -n --arg content "$content" --arg target "$mention_target" --arg mobile "$MENTIONED_MOBILE" '{msgtype:"text", text:{content:$content, mentioned_list:[$target], mentioned_mobile_list:[$mobile]}}')"
+          else
+            payload="$(jq -n --arg content "$content" --arg target "$mention_target" '{msgtype:"text", text:{content:$content, mentioned_list:[$target]}}')"
+          fi
 
           curl --fail --silent --show-error \
             --request POST \
